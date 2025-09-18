@@ -373,17 +373,17 @@
                 </div>
             `;
             
-            // Domain scores table
-            const tableBody = document.getElementById('domainScoresTable');
-            tableBody.innerHTML = domainScores.map((domain, index) => `
-                <tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
-                    <td class="border border-gray-200 px-4 py-3 font-medium">Domain ${index + 1}: ${domain.title}</td>
-                    <td class="border border-gray-200 px-4 py-3 text-center font-semibold">${domain.score}</td>
-                    <td class="border border-gray-200 px-4 py-3 text-center">${domain.max}</td>
-                </tr>
-            `).join('');
+           // Domain scores table
+const tableBody = document.getElementById('domainScoresTable');
+tableBody.innerHTML = domainScores.map((domain, index) => `
+    <tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
+        <td class="border border-gray-200 px-4 py-3 font-medium">Domain ${index + 1}: ${domain.title}</td>
+        <td class="border border-gray-200 px-4 py-3 text-center font-semibold">${domain.score}</td>
+        <td class="border border-gray-200 px-4 py-3 text-center">${domain.max}</td>
+    </tr>
+`).join('');
 
-            // Domain response breakdown
+// Domain response breakdown
 const breakdownContainer = document.getElementById('domainBreakdown');
 breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
     const emojiRow = domain.questions.map((_, questionIndex) => {
@@ -408,11 +408,20 @@ breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
 }).join('');
 
 
+    return `
+        <div class="bg-gray-50 rounded-lg p-4 shadow-md">
+            <h4 class="text-md font-semibold text-gray-800 mb-2">Domain ${domainIndex + 1}: ${domain.title}</h4>
+            <div class="grid grid-cols-5 gap-4 text-center">
+                ${emojiRow}
+            </div>
+        </div>
+    `;
+}).join('');
 
 
-            <!-- Domain Response Boxes -->
-<div id="domainBreakdown" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"></div>
 
+
+    
             // Raw scores
             document.getElementById('rawScores').textContent = rawScores.join(',');
         }
