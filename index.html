@@ -74,9 +74,7 @@
                 <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">Your Results</h2>
                 
                 <!-- Student Information Display -->
-                <div id="studentInfoDisplay" class="bg-gray-50 p-4 rounded-lg mb-6">
-                    <!-- Student info will be inserted here -->
-                </div>
+                <div id="studentInfoDisplay" class="bg-gray-50 p-4 rounded-lg mb-6"></div>
                 
                 <!-- Overall Score -->
                 <div id="overallScore" class="text-center mb-8 p-6 rounded-lg"></div>
@@ -91,14 +89,12 @@
                                 <th class="border border-gray-200 px-4 py-3 text-center font-semibold text-gray-700">Max</th>
                             </tr>
                         </thead>
-                        <tbody id="domainScoresTable">
-                            <!-- Domain scores will be inserted here -->
-                        </tbody>
+                        <tbody id="domainScoresTable"></tbody>
                     </table>
                 </div>
 
-                <!-- Domain Response Boxes (emoji + number per question) -->
-                <div id="domainBreakdown" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"></div>
+                <!-- Domain Response Boxes (full-width Likert layout) -->
+                <div id="domainBreakdown" class="space-y-6 mb-8"></div>
 
                 <!-- Raw Scores -->
                 <div class="mb-6">
@@ -207,6 +203,59 @@
 
         let responses = {};
 
+        /* ---------------- Cookie Utilities ---------------- */
+        const COOKIE_NAME = 'ssa_state';
+        function setCookie(name, value, days) {
+            const expires = new Date(Date.now() + days * 864e5).toUTCString();
+            document.cookie = name + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/";
+        }
+        function getCookie(name) {
+            const v = document.cookie.split('; ').find(row => row.startsWith(name + '='));
+            return v ? decodeURIComponent(v.split('=')[1]) : null;
+        }
+        function eraseCookie(name) {
+            document.cookie = name + "=; Max-Age=0; path=/";
+        }
+        function saveStateToCookie() {
+            const data = {
+                studentName: document.getElementById('studentName').value,
+                assessmentDate: document.getElementById('assessmentDate').value,
+                interventionType: document.getElementById('interventionType').value,
+                responses
+            };
+            try {
+                setCookie(COOKIE_NAME, JSON.stringify(data), 30);
+            } catch(e) {
+                // Silently ignore if cookie too large
+            }
+        }
+        function loadStateFromCookie() {
+            const raw = getCookie(COOKIE_NAME);
+            if (!raw) return;
+            try {
+                const data = JSON.parse(raw);
+                if (data.studentName) document.getElementById('studentName').value = data.studentName;
+                if (data.assessmentDate) document.getElementById('assessmentDate').value = data.assessmentDate;
+                if (data.interventionType) document.getElementById('interventionType').value = data.interventionType;
+                if (data.responses && typeof data.responses === 'object') {
+                    responses = data.responses;
+                    // Re-apply button selections visually
+                    Object.keys(responses).forEach(d => {
+                        Object.keys(responses[d]).forEach(q => {
+                            const val = responses[d][q];
+                            const btn = document.querySelector(`.emoji-button[data-domain="${d}"][data-question="${q}"][data-value="${val}"]`);
+                            if (btn) {
+                                btn.parentElement.querySelectorAll('.emoji-button').forEach(s => s.classList.remove('selected','border-blue-500'));
+                                btn.classList.add('selected','border-blue-500');
+                            }
+                        });
+                    });
+                }
+            } catch(e) {
+                // bad cookie JSON; ignore
+            }
+        }
+
         function createAssessmentForm() {
             const form = document.getElementById('assessmentForm');
             
@@ -262,15 +311,14 @@
             // Store response
             if (!responses[domain]) responses[domain] = {};
             responses[domain][question] = value;
-            
-            // Check if all questions are answered
+
+            saveStateToCookie();            
             updateSubmitButton();
         }
 
         function updateSubmitButton() {
             const totalQuestions = domains.length * 5;
             let answeredQuestions = 0;
-            
             for (let domain in responses) {
                 answeredQuestions += Object.keys(responses[domain]).length;
             }
@@ -294,6 +342,9 @@
                 if (!allQuestionsAnswered) missing.push(`${totalQuestions - answeredQuestions} questions`);
                 submitBtn.textContent = `Complete Assessment (Missing: ${missing.join(', ')})`;
             }
+
+            // Persist current info fields too
+            saveStateToCookie();
         }
 
         function calculateResults() {
@@ -327,7 +378,7 @@
             const date = document.getElementById('assessmentDate').value;
             const type = document.getElementById('interventionType').value;
             
-            // Display student information
+            // Student info
             const studentInfoDisplay = document.getElementById('studentInfoDisplay');
             studentInfoDisplay.innerHTML = `
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
@@ -351,20 +402,20 @@
             document.getElementById('submitSection').style.display = 'none';
             document.getElementById('resultsSection').classList.remove('hidden');
             
-            // Overall score
+            // Overall score with new thresholds
             const overallDiv = document.getElementById('overallScore');
             let message, bgColor, textColor;
-            
-            if (totalScore >= 85) {
-                message = "You're showing lots of strength! You might not need extra support right now.";
+
+            if (totalScore >= 106) {
+                message = "Doing well";
                 bgColor = "bg-green-100";
                 textColor = "text-green-800";
-            } else if (totalScore >= 36) {
-                message = "You're doing well in some areas, but we may be able to help with others.";
+            } else if (totalScore >= 71) {
+                message = "Some areas of support";
                 bgColor = "bg-yellow-100";
                 textColor = "text-yellow-800";
             } else {
-                message = "You might be finding some things tough, we're here to help and support you.";
+                message = "Lots of areas of support";
                 bgColor = "bg-red-100";
                 textColor = "text-red-800";
             }
@@ -386,66 +437,59 @@
                 </tr>
             `).join('');
 
-            // Domain response breakdown (Likert-style: rows = questions, cols = 1..4)
-const breakdownContainer = document.getElementById('domainBreakdown');
+            // Domain response breakdown (Likert-style: rows = questions, cols = 1..4), full-width blocks
+            const breakdownContainer = document.getElementById('domainBreakdown');
+            const orderedScale = [...scaleOptions].sort((a, b) => a.value - b.value);
 
-// Order columns from low (1) to high (4), left -> right
-const orderedScale = [...scaleOptions].sort((a, b) => a.value - b.value);
+            breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
+                const header = `
+                    <div class="grid grid-cols-5">
+                        <div class="bg-gray-50 px-3 py-2 font-semibold text-sm text-left border border-gray-200">Question</div>
+                        ${orderedScale.map(opt => `
+                            <div class="bg-gray-50 px-3 py-2 font-semibold text-sm text-center border border-gray-200">
+                                <div class="text-base leading-none">${opt.emoji}</div>
+                                <div class="text-[10px] text-gray-600 mt-1">${opt.value}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
 
-breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
-  // Header row
-  const header = `
-    <div class="grid grid-cols-5">
-      <div class="bg-gray-50 px-3 py-2 font-semibold text-sm text-left border border-gray-200">Question</div>
-      ${orderedScale.map(opt => `
-        <div class="bg-gray-50 px-3 py-2 font-semibold text-sm text-center border border-gray-200">
-          <div class="text-base leading-none">${opt.emoji}</div>
-          <div class="text-[10px] text-gray-600 mt-1"> ${opt.value} </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+                const rows = domain.questions.map((q, questionIndex) => {
+                    const selectedValue = responses[domainIndex][questionIndex];
+                    const cells = orderedScale.map(opt => {
+                        const selected = opt.value === selectedValue;
+                        return `
+                            <div class="px-3 py-2 text-center border border-gray-200 ${selected ? 'bg-blue-50 font-semibold' : 'text-gray-300'}">
+                                ${selected
+                                    ? `<div class="text-xl leading-none">${opt.emoji}</div>
+                                       <div class="text-[10px] mt-1 text-gray-700">${selectedValue}</div>`
+                                    : '•'}
+                            </div>
+                        `;
+                    }).join('');
 
-  // Body rows (one per question)
-  const rows = domain.questions.map((q, questionIndex) => {
-    const selectedValue = responses[domainIndex][questionIndex];
+                    return `
+                        <div class="grid grid-cols-5">
+                            <div class="px-3 py-2 text-sm border border-gray-200 text-gray-800">${q}</div>
+                            ${cells}
+                        </div>
+                    `;
+                }).join('');
 
-    const cells = orderedScale.map(opt => {
-      const selected = opt.value === selectedValue;
-      return `
-        <div class="px-3 py-2 text-center border border-gray-200
-                    ${selected ? 'bg-blue-50 font-semibold' : 'text-gray-300'}">
-          ${selected
-            ? `<div class="text-xl leading-none">${opt.emoji}</div>
-               <div class="text-[10px] mt-1 text-gray-700">${selectedValue}</div>`
-            : '•'}
-        </div>
-      `;
-    }).join('');
-
-    return `
-      <div class="grid grid-cols-5">
-        <div class="px-3 py-2 text-sm border border-gray-200 text-gray-800">${q}</div>
-        ${cells}
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
-      <div class="px-4 pt-4 pb-2">
-        <h4 class="text-md font-semibold text-gray-800">
-          Domain ${domainIndex + 1}: ${domain.title}
-        </h4>
-      </div>
-      <div class="px-0 pb-4">
-        ${header}
-        ${rows}
-      </div>
-    </div>
-  `;
-}).join('');
-
+                return `
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="px-4 pt-4 pb-2">
+                            <h4 class="text-md font-semibold text-gray-800">
+                                Domain ${domainIndex + 1}: ${domain.title}
+                            </h4>
+                        </div>
+                        <div class="px-0 pb-4">
+                            ${header}
+                            ${rows}
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
             // Raw scores
             document.getElementById('rawScores').textContent = rawScores.join(',');
@@ -458,14 +502,12 @@ breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
         function copyCSVData() {
             const { rawScores } = calculateResults();
             const csvData = rawScores.join(',');
-            
             navigator.clipboard.writeText(csvData).then(() => {
                 const btn = document.getElementById('copyBtn');
                 const originalText = btn.textContent;
                 btn.textContent = '✅ Copied!';
                 btn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
                 btn.classList.add('bg-green-600', 'hover:bg-green-700');
-                
                 setTimeout(() => {
                     btn.textContent = originalText;
                     btn.classList.remove('bg-green-600', 'hover:bg-green-700');
@@ -476,16 +518,17 @@ breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
 
         function retakeAssessment() {
             responses = {};
+            eraseCookie(COOKIE_NAME);
             document.getElementById('resultsSection').classList.add('hidden');
             document.getElementById('assessmentForm').style.display = 'block';
             document.getElementById('submitSection').style.display = 'block';
             
-            // Clear all selections
+            // Clear selections
             document.querySelectorAll('.emoji-button').forEach(button => {
                 button.classList.remove('selected', 'border-blue-500');
             });
             
-            // Clear student information (but keep today's date)
+            // Clear student information (keep today's date)
             document.getElementById('studentName').value = '';
             document.getElementById('assessmentDate').value = new Date().toISOString().split('T')[0];
             document.getElementById('interventionType').value = '';
@@ -501,15 +544,16 @@ breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
         document.getElementById('copyBtn').addEventListener('click', copyCSVData);
         document.getElementById('retakeBtn').addEventListener('click', retakeAssessment);
         
-        // Add event listeners for student info fields
+        // Persist changes from info fields
         document.getElementById('studentName').addEventListener('input', updateSubmitButton);
         document.getElementById('assessmentDate').addEventListener('change', updateSubmitButton);
         document.getElementById('interventionType').addEventListener('change', updateSubmitButton);
 
         // Initialize
         createAssessmentForm();
-        // Set today's date as default
+        // Default date to today, then load cookie to override if present
         document.getElementById('assessmentDate').value = new Date().toISOString().split('T')[0];
+        loadStateFromCookie();
         updateSubmitButton();
     </script>
 <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98102f6bd2551239',t:'MTc1ODE5MTYwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
