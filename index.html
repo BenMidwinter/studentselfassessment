@@ -382,7 +382,37 @@
                     <td class="border border-gray-200 px-4 py-3 text-center">${domain.max}</td>
                 </tr>
             `).join('');
-            
+
+            // Domain response breakdown
+const breakdownContainer = document.getElementById('domainBreakdown');
+breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
+    const emojiRow = domain.questions.map((_, questionIndex) => {
+        const value = responses[domainIndex][questionIndex];
+        const option = scaleOptions.find(o => o.value === value);
+        return `
+            <div class="flex flex-col items-center">
+                <div class="text-3xl">${option.emoji}</div>
+                <div class="text-sm text-gray-700 mt-1">${value}</div>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="bg-gray-50 rounded-lg p-4 shadow-md">
+            <h4 class="text-md font-semibold text-gray-800 mb-2">Domain ${domainIndex + 1}: ${domain.title}</h4>
+            <div class="grid grid-cols-5 gap-4 text-center">
+                ${emojiRow}
+            </div>
+        </div>
+    `;
+}).join('');
+
+
+
+
+            <!-- Domain Response Boxes -->
+<div id="domainBreakdown" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"></div>
+
             // Raw scores
             document.getElementById('rawScores').textContent = rawScores.join(',');
         }
