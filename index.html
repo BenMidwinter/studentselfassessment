@@ -386,29 +386,66 @@
                 </tr>
             `).join('');
 
-            // Domain response breakdown (emoji + number for each question)
-            const breakdownContainer = document.getElementById('domainBreakdown');
-            breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
-                const emojiRow = domain.questions.map((_, questionIndex) => {
-                    const value = responses[domainIndex][questionIndex];
-                    const option = scaleOptions.find(o => o.value === value);
-                    return `
-                        <div class="flex flex-col items-center">
-                            <div class="text-3xl">${option.emoji}</div>
-                            <div class="text-sm text-gray-700 mt-1">${value}</div>
-                        </div>
-                    `;
-                }).join('');
+            // Domain response breakdown (Likert-style: rows = questions, cols = 1..4)
+const breakdownContainer = document.getElementById('domainBreakdown');
 
-                return `
-                    <div class="bg-gray-50 rounded-lg p-4 shadow-md">
-                        <h4 class="text-md font-semibold text-gray-800 mb-2">Domain ${domainIndex + 1}: ${domain.title}</h4>
-                        <div class="grid grid-cols-5 gap-4 text-center">
-                            ${emojiRow}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+// Order columns from low (1) to high (4), left -> right
+const orderedScale = [...scaleOptions].sort((a, b) => a.value - b.value);
+
+breakdownContainer.innerHTML = domains.map((domain, domainIndex) => {
+  // Header row
+  const header = `
+    <div class="grid grid-cols-5">
+      <div class="bg-gray-50 px-3 py-2 font-semibold text-sm text-left border border-gray-200">Question</div>
+      ${orderedScale.map(opt => `
+        <div class="bg-gray-50 px-3 py-2 font-semibold text-sm text-center border border-gray-200">
+          <div class="text-base leading-none">${opt.emoji}</div>
+          <div class="text-[10px] text-gray-600 mt-1"> ${opt.value} </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // Body rows (one per question)
+  const rows = domain.questions.map((q, questionIndex) => {
+    const selectedValue = responses[domainIndex][questionIndex];
+
+    const cells = orderedScale.map(opt => {
+      const selected = opt.value === selectedValue;
+      return `
+        <div class="px-3 py-2 text-center border border-gray-200
+                    ${selected ? 'bg-blue-50 font-semibold' : 'text-gray-300'}">
+          ${selected
+            ? `<div class="text-xl leading-none">${opt.emoji}</div>
+               <div class="text-[10px] mt-1 text-gray-700">${selectedValue}</div>`
+            : '•'}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="grid grid-cols-5">
+        <div class="px-3 py-2 text-sm border border-gray-200 text-gray-800">${q}</div>
+        ${cells}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
+      <div class="px-4 pt-4 pb-2">
+        <h4 class="text-md font-semibold text-gray-800">
+          Domain ${domainIndex + 1}: ${domain.title}
+        </h4>
+      </div>
+      <div class="px-0 pb-4">
+        ${header}
+        ${rows}
+      </div>
+    </div>
+  `;
+}).join('');
+
 
             // Raw scores
             document.getElementById('rawScores').textContent = rawScores.join(',');
